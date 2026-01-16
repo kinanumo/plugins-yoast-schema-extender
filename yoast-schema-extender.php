@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Yoast Schema Extender — Agency Pack (Multi-Location + FAQ Builder)
  * Description: Adds industry-aware, LLM-friendly schema on top of Yoast with a settings UI and per-post FAQ metabox. Supports Service Areas, 3-tier LocalBusiness subtypes, Import/Export, topic mentions, optional Multi-Location branches (inherit hours/phone/email). Coexists with Yoast; avoids duplication. Per-post Overrides metabox removed to keep non-tech users safe.
- * Version: 2.5.4
+ * Version: 2.5.5
  * Author: Thomas Digital
  * Requires at least: 6.0
  * Requires PHP: 7.4
