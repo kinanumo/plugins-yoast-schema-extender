@@ -262,7 +262,6 @@ jQuery(function($){
   }
 
   // Insert Example links
-  $(document).on('click','[data-yse-example="identifier"]', function(e){ e.preventDefault(); fill('identifier', [{"@type":"PropertyValue","propertyID":"DUNS","value":"123456789"}]); });
     // Insert Example: Opening Hours — Mon–Fri 09:00–17:00, Sat/Sun closed
     $(document).on('click','[data-yse-example="opening_hours"]', function(e){
     e.preventDefault();
@@ -287,7 +286,6 @@ jQuery(function($){
     if (!el) return;
     el.value = JSON.stringify(sample, null, 2);
     });
-  $(document).on('click','[data-yse-example="entity_mentions"]', function(e){ e.preventDefault(); fill('entity_mentions', [{"@id":"https://en.wikipedia.org/wiki/Web_design"},{"@id":"https://www.wikidata.org/wiki/Q16674915"}]); });
 
   yseInitSubtypeCascades();
   yseInitMultiLocation();
@@ -314,7 +312,6 @@ JS;
             ['org_email','Public Email','text','', 'ELI5: Customers can email this address. Leave blank if you don’t publish email.'],
             ['telephone','Telephone (E.164 preferred)','text','', 'Phone number like +1-916-555-1212.'],
             ['same_as','sameAs Profiles (one URL per line)','textarea','', 'ELI5: Paste links to official profiles (Google Business Profile, Facebook, LinkedIn, Yelp). One per line.'],
-            ['identifier','Identifiers (JSON array)','textarea','identifier', 'ELI5: Extra IDs that prove who you are. Click “Insert example”.'],
             ['is_local','Is LocalBusiness?','checkbox','', 'Tick if you serve a local area or have a physical location.'],
             ['lb_subtype','LocalBusiness Subtype (Tier 1)','select', self::local_subtypes(), 'Pick the closest family for your business.'],
             ['lb_subtype2','Subtype (Tier 2 • optional)','select', [], 'Changes based on Tier 1.'],
@@ -341,34 +338,6 @@ JS;
         add_settings_field('ml_enabled','Enable multiple locations',[$this,'render_field'],'yse-settings','yse_ml',['key'=>'ml_enabled','type'=>'checkbox','help'=>'Adds a repeatable list of locations below.']);
         add_settings_field('ml_locations','Locations',[$this,'render_ml_repeater'],'yse-settings','yse_ml');
 
-        add_settings_section('yse_intent', 'Page Intent Detection', function(){
-            echo '<p>Tell search engines what a page is. First match wins. Keep it honest.</p>';
-        }, 'yse-settings');
-        $intent = [
-            ['slug_about','About slug (e.g., about)','text','', 'If your About page is /about-us, enter <code>about-us</code>.'],
-            ['slug_contact','Contact slug (e.g., contact)','text','', 'If your Contact page is /get-in-touch, enter <code>get-in-touch</code>.'],
-            ['faq_shortcode','FAQ shortcode tag (e.g., faq)','text','', 'If your FAQ uses a shortcode like [faq], enter the tag here. (WebPage @type only)'],
-            ['howto_shortcode','HowTo shortcode tag (e.g., howto)','text','', 'If your how-to uses [howto], enter the tag here.'],
-            ['extra_faq_slug','Additional FAQ page slug','text','', 'If you have a separate FAQs page, enter its slug.'],
-        ];
-        foreach ($intent as $f){
-            add_settings_field($f[0], $f[1], [$this,'render_field'], 'yse-settings', 'yse_intent', [
-                'key'=>$f[0],'type'=>$f[2],'help'=>$f[4]??''
-            ]);
-        }
-
-        add_settings_section('yse_cpt', 'CPT → Schema Mapping', function(){
-            echo '<p>One per line, format: <span class="yse-badge">cpt:Type</span> (e.g., <code>services:Service</code>, <code>locations:Place</code>, <code>team:Person</code>, <code>software:SoftwareApplication</code>).</p>';
-        }, 'yse-settings');
-        add_settings_field('cpt_map','Mappings',[$this,'render_field'],'yse-settings','yse_cpt',['key'=>'cpt_map','type'=>'textarea','help'=>'Enter one mapping per line.']);
-
-        add_settings_section('yse_mentions', 'Topic Mentions (LLM-friendly)', function(){
-            echo '<p>JSON array of <code>{ "@id": "https://..." }</code> links (Wikipedia/Wikidata) that describe your topics.</p>';
-        }, 'yse-settings');
-        add_settings_field('entity_mentions','about/mentions JSON',[$this,'render_field'],'yse-settings','yse_mentions',[
-            'key'=>'entity_mentions','type'=>'textarea','options'=>'entity_mentions','help'=>'We add to both about and mentions.'
-        ]);
-
         add_settings_section('yse_faq', 'FAQ Builder (Per-Post)', function(){
             echo '<p>Add a simple FAQ metabox to selected post types. Editors enter questions & answers; we emit a valid <code>FAQPage</code> JSON-LD. Nothing is selected by default.</p>';
         }, 'yse-settings');
@@ -393,7 +362,7 @@ JS;
                 echo ' <button class="button yse-media" data-target="'.esc_attr($key).'">Select</button>';
             }
         } elseif ($type==='textarea'){
-            $is_json_field = in_array($key, ['identifier','opening_hours','entity_mentions'], true);
+            $is_json_field = in_array($key, ['opening_hours'], true);
             if ($is_json_field){
                 $display = is_array($val) ? wp_json_encode($val, JSON_UNESCAPED_SLASHES|JSON_PRETTY_PRINT) : (string)$val;
                 printf('<textarea class="large-text code yse-mono" rows="8" name="%s[%s]" id="%s">%s</textarea>',
@@ -404,18 +373,10 @@ JS;
                     esc_attr(self::OPT_KEY), esc_attr($key), esc_attr($key), esc_textarea((string)$val));
             }
 
-            if ($key==='identifier'){
-                echo ' <a href="#" class="button-link" data-yse-example="identifier">Insert example</a>';
-                echo '<div class="yse-help">JSON array, e.g. <code>[{"@type":"PropertyValue","propertyID":"DUNS","value":"123456789"}]</code></div>';
-            }
             if ($key==='opening_hours'){
                 echo ' <a href="#" class="button-link" data-yse-example="opening_hours">Insert example</a>';
                 echo '<div class="yse-help">JSON array of <code>OpeningHoursSpecification</code>. Use 24-hour HH:MM. '
                 . 'Tip: The example includes a weekend “closed” template (00:00–00:00). For maximum Google-compatibility, you can simply delete the weekend block so closed days are omitted.</div>';
-            }
-            if ($key==='entity_mentions'){
-                echo ' <a href="#" class="button-link" data-yse-example="entity_mentions">Insert example</a>';
-                echo '<div class="yse-help">JSON array of objects with <code>@id</code> URLs.</div>';
             }
             if ($key==='same_as'){
                 echo '<div class="yse-help">One URL per line. Examples: <code>https://www.facebook.com/YourBrand</code>, <code>https://www.linkedin.com/company/yourbrand</code>, <code>https://g.co/kgs/...</code></div>';
@@ -703,7 +664,7 @@ JS;
                     $this->render_section_body('yse_main');
 
                     // Render the remaining sections (their headings + bodies) inside this same card
-                    $this->render_sections(['yse_ml','yse_intent','yse_cpt','yse_mentions','yse_faq','yse_overrides']);
+                    $this->render_sections(['yse_ml','yse_faq','yse_overrides']);
 
                     submit_button('Save Settings');
 
@@ -832,9 +793,7 @@ JS;
         // one city per line → array of strings
         $out['service_area'] = $this->sanitize_lines_as_text($in['service_area'] ?? '');
 
-        $out['identifier']      = $this->sanitize_json_field($in['identifier'] ?? '[]', [], 'identifier', 'Identifiers');
         $out['opening_hours']   = $this->sanitize_json_field($in['opening_hours'] ?? '[]', [], 'opening_hours', 'Opening Hours');
-        $out['entity_mentions'] = $this->sanitize_json_field($in['entity_mentions'] ?? '[]', [], 'entity_mentions', 'Topic Mentions');
 
         $out['is_local']  = !empty($in['is_local']) ? '1' : '0';
         $out['lb_subtype']  = preg_replace('/[^A-Za-z]/','', sanitize_text_field($in['lb_subtype'] ?? ''));
@@ -848,14 +807,6 @@ JS;
         $out['addr_country'] = sanitize_text_field($in['addr_country'] ?? '');
         $out['geo_lat']      = sanitize_text_field($in['geo_lat'] ?? '');
         $out['geo_lng']      = sanitize_text_field($in['geo_lng'] ?? '');
-
-        $out['slug_about']     = sanitize_title($in['slug_about'] ?? '');
-        $out['slug_contact']   = sanitize_title($in['slug_contact'] ?? '');
-        $out['faq_shortcode']  = sanitize_key($in['faq_shortcode'] ?? '');
-        $out['howto_shortcode']= sanitize_key($in['howto_shortcode'] ?? '');
-        $out['extra_faq_slug'] = sanitize_title($in['extra_faq_slug'] ?? '');
-
-        $out['cpt_map'] = $this->sanitize_cpt_map($in['cpt_map'] ?? '');
 
         $out['override_org'] = !empty($in['override_org']) ? '1' : '0';
 
@@ -1037,43 +988,6 @@ JS;
         }
 
         return $decoded;
-    }
-
-    private function sanitize_cpt_map($raw){
-        // If already an array, normalize keys/values and return.
-        if (is_array($raw)) {
-            $map = [];
-            foreach ($raw as $cpt => $type) {
-                $cpt = sanitize_key($cpt);
-                $type = preg_replace(
-                    '/[^A-Za-z]/',
-                    '',
-                    is_string($type) ? $type : (string)$type
-                );
-                if ($cpt && $type) {
-                    $map[$cpt] = $type;
-                }
-            }
-            return $map;
-        }
-
-        // Normal textarea case: one "cpt:Type" per line.
-        $raw = is_string($raw) ? wp_unslash($raw) : '';
-        $lines = array_filter(
-            array_map('trim', preg_split('/\r\n|\r|\n/', $raw))
-        );
-
-        $map = [];
-        foreach ($lines as $line) {
-            if (strpos($line, ':') !== false) {
-                [$cpt, $type] = array_map('trim', explode(':', $line, 2));
-                if ($cpt && $type) {
-                    $map[sanitize_key($cpt)] = preg_replace('/[^A-Za-z]/', '', $type);
-                }
-            }
-        }
-
-        return $map;
     }
 
     private static function local_subtypes(){
@@ -1281,10 +1195,6 @@ JS;
             $ours_sameas     = !empty($s['same_as']) ? (array)$s['same_as'] : [];
             $data['sameAs']  = array_values(array_unique(array_filter(array_merge($existing_sameas, $ours_sameas))));
 
-            if (!empty($s['identifier']) && is_array($s['identifier'])) {
-                $data['identifier'] = array_values(array_merge($data['identifier'] ?? [], $s['identifier']));
-            }
-
             $addr = array_filter([
                 '@type'           => 'PostalAddress',
                 'streetAddress'   => $s['addr_street'] ?? '',
@@ -1327,82 +1237,11 @@ JS;
             return $data;
         }, 99);
 
-        // WebPage typing from SETTINGS ONLY (no per-post override)
-        add_filter('wpseo_schema_webpage', function($data){
-            if (!is_singular()) return $data;
-            $s = get_option(self::OPT_KEY, []);
-            global $post;
-            $slug = $post ? $post->post_name : '';
-            $content = $post ? get_post_field('post_content', $post) : '';
-
-            if (!empty($s['slug_about']) && $slug === $s['slug_about']){
-                $data['@type'] = 'AboutPage';
-            } elseif (!empty($s['slug_contact']) && $slug === $s['slug_contact']){
-                $data['@type'] = 'ContactPage';
-            } elseif (!empty($s['extra_faq_slug']) && $slug === $s['extra_faq_slug']){
-                $data['@type'] = 'FAQPage';
-            } else {
-                if (!empty($s['faq_shortcode']) && function_exists('has_shortcode') && has_shortcode($content, $s['faq_shortcode'])){
-                    $data['@type'] = 'FAQPage';
-                } elseif (!empty($s['howto_shortcode']) && function_exists('has_shortcode') && has_shortcode($content, $s['howto_shortcode'])){
-                    $data['@type'] = 'HowTo';
-                }
-            }
-
-            $global_mentions = (!empty($s['entity_mentions']) && is_array($s['entity_mentions'])) ? $s['entity_mentions'] : [];
-            if (!empty($global_mentions)){
-                $existing_about = (isset($data['about']) && is_array($data['about'])) ? $data['about'] : [];
-                $incoming = array_merge($existing_about, $global_mentions);
-                $seen=[]; $merged=[];
-                foreach ($incoming as $it){
-                    if (is_array($it) && isset($it['@id'])){
-                        $key = 'id:'.strtolower(trim($it['@id']));
-                    } else {
-                        $key = 'txt:'.strtolower(trim(is_string($it)?$it:wp_json_encode($it)));
-                    }
-                    if (!isset($seen[$key])){ $seen[$key]=true; $merged[] = $it; }
-                }
-                $data['about']    = $merged;
-                $data['mentions'] = $merged;
-            }
-
-            return $data;
-        }, 20);
-
-        // CPT mapping piece, Breadcrumb, Video, Multi-Location
+        // Breadcrumb, Video, Multi-Location
         add_filter('wpseo_schema_graph_pieces', function($pieces, $context){
             if (!is_singular()) return $pieces;
             $s = get_option(self::OPT_KEY, []);
             global $post;
-
-            // CPT → Type mapping (settings only)
-            $map   = is_array($s['cpt_map'] ?? null) ? $s['cpt_map'] : [];
-            $ptype = $post ? get_post_type($post) : '';
-            $type  = ($ptype && isset($map[$ptype])) ? preg_replace('/[^A-Za-z]/','', $map[$ptype]) : '';
-
-            if ($type && class_exists('\Yoast\WP\SEO\Generators\Schema\Abstract_Schema_Piece')){
-                $pieces[] = new class($context, $type, $post) extends \Yoast\WP\SEO\Generators\Schema\Abstract_Schema_Piece {
-                    private $type; private $post;
-                    public function __construct($context, $type, $post){ parent::__construct($context); $this->type=$type; $this->post=$post; }
-                    public function is_needed(){ return true; }
-                    public function generate(){
-                        $id = get_permalink($this->post).'#/schema/'.strtolower($this->type);
-                        $org_id = home_url('#/schema/organization');
-                        $desc_raw = get_the_excerpt($this->post);
-                        if (!$desc_raw) $desc_raw = get_post_field('post_content', $this->post);
-                        $desc = $desc_raw ? wp_strip_all_tags($desc_raw) : '';
-                        $graph = [
-                            '@type'       => $this->type,
-                            '@id'         => $id,
-                            'name'        => get_the_title($this->post),
-                            'url'         => get_permalink($this->post),
-                            'description' => $desc ? wp_trim_words($desc, 60, '') : '',
-                            'provider'    => ['@id'=>$org_id],
-                        ];
-                        return $graph;
-                    }
-                };
-            }
 
             // BreadcrumbList (simple, consistent)
             if (class_exists('\Yoast\WP\SEO\Generators\Schema\Abstract_Schema_Piece')){
