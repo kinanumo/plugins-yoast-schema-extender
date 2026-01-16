@@ -906,39 +906,104 @@ JS;
     }
 
     private function sanitize_lines_as_urls($raw){
-        $raw = is_string($raw) ? wp_unslash($raw) : $raw;
-        $lines = array_filter(array_map('trim', preg_split('/\r\n|\r|\n/', (string)$raw)));
-        $urls  = [];
-        foreach($lines as $l){
-            $u = esc_url_raw($l);
-            if ($u) $urls[] = $u;
+        // If already an array (from previous saves), normalize and return.
+        if (is_array($raw)) {
+            $urls = [];
+            foreach ($raw as $v) {
+                if (!is_string($v)) {
+                    continue;
+                }
+                $v = trim($v);
+                if ($v === '') {
+                    continue;
+                }
+                $u = esc_url_raw($v);
+                if ($u) {
+                    $urls[] = $u;
+                }
+            }
+            return $urls;
         }
+
+        // Normal textarea case: one URL per line.
+        $raw = is_string($raw) ? wp_unslash($raw) : '';
+        $lines = array_filter(
+            array_map('trim', preg_split('/\r\n|\r|\n/', $raw))
+        );
+
+        $urls = [];
+        foreach ($lines as $l) {
+            $u = esc_url_raw($l);
+            if ($u) {
+                $urls[] = $u;
+            }
+        }
+
         return $urls;
     }
+
     private function sanitize_lines_as_text($raw){
-        $raw = is_string($raw) ? wp_unslash($raw) : $raw;
-        $lines = array_filter(array_map('trim', preg_split('/\r\n|\r|\n/', (string)$raw)));
-        $safe  = [];
-        foreach($lines as $l){
-            $l = wp_strip_all_tags($l);
-            if ($l !== '') $safe[] = $l;
+        // If already an array, clean each entry and return.
+        if (is_array($raw)) {
+            $safe = [];
+            foreach ($raw as $v) {
+                if (!is_string($v)) {
+                    continue;
+                }
+                $v = trim(wp_strip_all_tags($v));
+                if ($v !== '') {
+                    $safe[] = $v;
+                }
+            }
+            return array_values(array_unique($safe));
         }
+
+        // Normal textarea case.
+        $raw = is_string($raw) ? wp_unslash($raw) : '';
+        $lines = array_filter(
+            array_map('trim', preg_split('/\r\n|\r|\n/', $raw))
+        );
+
+        $safe = [];
+        foreach ($lines as $l) {
+            $l = wp_strip_all_tags($l);
+            if ($l !== '') {
+                $safe[] = $l;
+            }
+        }
+
         return array_values(array_unique($safe));
     }
+
     private function sanitize_json_field($raw, $fallback, $field_key, $human_label){
-        if (is_string($raw)) $raw = wp_unslash($raw);
-        $raw = (string)$raw;
+        // If already an array from previous saves, trust it and return.
+        if (is_array($raw)) {
+            return $raw;
+        }
+
+        if (is_string($raw)) {
+            $raw = wp_unslash($raw);
+        } else {
+            $raw = '';
+        }
+
         $raw = preg_replace('/^\xEF\xBB\xBF/', '', $raw);
         $raw_trim = trim($raw);
-        if ($raw_trim === '') return $fallback;
+        if ($raw_trim === '') {
+            return $fallback;
+        }
 
         $decoded = json_decode($raw_trim, true);
         if (json_last_error() !== JSON_ERROR_NONE) {
             $attempt = $raw_trim;
-            if (preg_match('/^\s*\{.*\}\s*$/s', $attempt)) $attempt = '['.$attempt.']';
+            if (preg_match('/^\s*\{.*\}\s*$/s', $attempt)) {
+                $attempt = '['.$attempt.']';
+            }
             $attempt = preg_replace('/,\s*(\]|\})/m', '$1', $attempt);
             $decoded = json_decode($attempt, true);
-            if (json_last_error() === JSON_ERROR_NONE) return is_array($decoded) ? $decoded : $fallback;
+            if (json_last_error() === JSON_ERROR_NONE) {
+                return is_array($decoded) ? $decoded : $fallback;
+            }
 
             $msg = json_last_error_msg();
             $hints = [
@@ -947,29 +1012,67 @@ JS;
                 'Remove trailing commas.',
                 'Ensure it is a JSON array: [ {...}, {...} ].',
             ];
-            add_settings_error(self::OPT_KEY, "json_error_{$field_key}",
-                sprintf('%s: Invalid JSON. %s Hints: %s', esc_html($human_label), esc_html($msg), esc_html(implode(' ', $hints))), 'error');
+            add_settings_error(
+                self::OPT_KEY,
+                "json_error_{$field_key}",
+                sprintf(
+                    '%s: Invalid JSON. %s Hints: %s',
+                    esc_html($human_label),
+                    esc_html($msg),
+                    esc_html(implode(' ', $hints))
+                ),
+                'error'
+            );
             return $fallback;
         }
+
         if (!is_array($decoded)) {
-            add_settings_error(self::OPT_KEY, "json_type_{$field_key}",
-                sprintf('%s must be a JSON array (e.g. [ ... ]).', esc_html($human_label)), 'error');
+            add_settings_error(
+                self::OPT_KEY,
+                "json_type_{$field_key}",
+                sprintf('%s must be a JSON array (e.g. [ ... ]).', esc_html($human_label)),
+                'error'
+            );
             return $fallback;
         }
+
         return $decoded;
     }
+
     private function sanitize_cpt_map($raw){
-        $raw = is_string($raw) ? wp_unslash($raw) : $raw;
-        $lines = array_filter(array_map('trim', preg_split('/\r\n|\r|\n/', (string)$raw)));
+        // If already an array, normalize keys/values and return.
+        if (is_array($raw)) {
+            $map = [];
+            foreach ($raw as $cpt => $type) {
+                $cpt = sanitize_key($cpt);
+                $type = preg_replace(
+                    '/[^A-Za-z]/',
+                    '',
+                    is_string($type) ? $type : (string)$type
+                );
+                if ($cpt && $type) {
+                    $map[$cpt] = $type;
+                }
+            }
+            return $map;
+        }
+
+        // Normal textarea case: one "cpt:Type" per line.
+        $raw = is_string($raw) ? wp_unslash($raw) : '';
+        $lines = array_filter(
+            array_map('trim', preg_split('/\r\n|\r|\n/', $raw))
+        );
+
         $map = [];
-        foreach($lines as $line){
-            if (strpos($line, ':') !== false){
+        foreach ($lines as $line) {
+            if (strpos($line, ':') !== false) {
                 [$cpt, $type] = array_map('trim', explode(':', $line, 2));
-                if ($cpt && $type){
+                if ($cpt && $type) {
                     $map[sanitize_key($cpt)] = preg_replace('/[^A-Za-z]/', '', $type);
                 }
             }
         }
+
         return $map;
     }
 
